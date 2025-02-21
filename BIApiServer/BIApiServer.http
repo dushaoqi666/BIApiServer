@@ -1,0 +1,6 @@
+@BIApiServer_HostAddress = http://localhost:5166
+
+GET {{BIApiServer_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

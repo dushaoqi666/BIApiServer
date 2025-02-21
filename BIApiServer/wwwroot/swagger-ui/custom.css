@@ -1,0 +1,100 @@
+/* 主题色 */
+:root {
+    --primary-color: #1890ff;
+    --success-color: #52c41a;
+    --error-color: #f5222d;
+}
+
+/* 顶部导航栏 */
+.swagger-ui .topbar {
+    background-color: var(--primary-color);
+    padding: 10px 0;
+}
+
+/* API标题 */
+.swagger-ui .info .title {
+    color: var(--primary-color);
+    font-size: 24px;
+    font-weight: 600;
+}
+
+/* API描述 */
+.swagger-ui .info .description {
+    font-size: 14px;
+    color: #666;
+    line-height: 1.8;
+}
+
+/* GET方法 */
+.swagger-ui .opblock.opblock-get {
+    border-color: var(--primary-color);
+    background: rgba(24,144,255,0.1);
+}
+
+/* POST方法 */
+.swagger-ui .opblock.opblock-post {
+    border-color: var(--success-color);
+    background: rgba(82,196,26,0.1);
+}
+
+/* DELETE方法 */
+.swagger-ui .opblock.opblock-delete {
+    border-color: var(--error-color);
+    background: rgba(245,34,45,0.1);
+}
+
+/* 按钮样式 */
+.swagger-ui .btn.execute {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    border-radius: 4px;
+    transition: all 0.3s;
+}
+
+.swagger-ui .btn.execute:hover {
+    opacity: 0.8;
+}
+
+/* 参数表格 */
+.swagger-ui .parameters-col_description {
+    width: 60%;
+}
+
+/* 响应示例 */
+.swagger-ui .responses-inner {
+    background: #fafafa;
+}
+
+/* 代码块 */
+.swagger-ui .highlight-code {
+    background: #282c34;
+}
+
+/* 标签样式 */
+.swagger-ui .opblock-tag {
+    border-bottom: 1px solid #eee;
+    padding: 10px 0;
+}
+
+/* 认证按钮 */
+.swagger-ui .auth-wrapper .authorize {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+/* 表格样式 */
+.swagger-ui table tbody tr td {
+    padding: 10px;
+    vertical-align: top;
+}
+
+/* 模型样式 */
+.swagger-ui section.models {
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+
+/* 折叠面板 */
+.swagger-ui .opblock .opblock-summary {
+    padding: 8px 20px;
+} 
