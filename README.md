@@ -16,8 +16,7 @@ BI API 是一个基于 .NET 8 开发的 Web API MVC项目，提供数据处理�
 - 请求日志中间件
 - CORS 跨域支持
 
-## 项目结构
-
+## 项目结构 
 BIApiServer/
 ├── Common/ # 通用组件
 │ ├── DbContexts/ # 数据库上下文
