@@ -4,7 +4,9 @@ using BIApiServer.Interfaces;
 using BIApiServer.Models;
 using BIApiServer.Models.InputDto;
 using BIApiServer.Utils;
+using BIApiServer.Exceptions;
 using SqlSugar;
+using System.Linq.Expressions;
 
 namespace BIApiServer.Services
 {
@@ -13,67 +15,143 @@ namespace BIApiServer.Services
     /// </summary>
     public class FileInfosService : BaseService<FileInfos>
     {
+        private readonly AppDbContext _db;
+        private readonly ILogger<FileInfosService> _logger;
+
         public FileInfosService(AppDbContext db, ILogger<FileInfosService> logger) 
             : base(db, logger)
         {
+            _db = db;
+            _logger = logger;
         }
 
-        #region 基础CRUD调用示例
+        #region 重写基础方法
         /// <summary>
-        /// 分页查询示例
+        /// 获取分页列表
         /// </summary>
-        public async Task<ApiResponse<List<FileInfos>>> GetPageListExample(QueryBaseParameter param)
+        public override async Task<ApiResponse<List<FileInfos>>> GetPageListAsync(QueryBaseParameter param)
         {
-            return await base.GetPageListAsync(param);
-        }
+            var response = new ApiResponse<List<FileInfos>>();
+            try
+            {
+                var query = base._dbClient.Queryable<FileInfos>()
+                    .Where(it => !it.IsDeleted); // 显式添加软删除过滤
+                
+                // 添加查询条件
+                if (!string.IsNullOrEmpty(param.Keyword))
+                {
+                    query = query.Where(it => 
+                        it.Name.Contains(param.Keyword)
+                    );
+                }
+                
+                var total = await query.CountAsync();
+                var data = await query
+                    .OrderByDescending(it => it.CreateTime)
+                    .ToPageListAsync(param.PageIndex, param.PageSize);
 
-        /// <summary>
-        /// 获取单个实体示例
-        /// </summary>
-        public async Task<FileInfos> GetByIdExample(int id)
-        {
-            return await base.GetByIdAsync(id);
-        }
-
-        /// <summary>
-        /// 新增示例
-        /// </summary>
-        public async Task<bool> AddExample(FileInfos entity)
-        {
-            return await base.AddAsync(entity);
-        }
-
-        /// <summary>
-        /// 批量新增示例
-        /// </summary>
-        public async Task<bool> AddBatchExample(List<FileInfos> entities)
-        {
-            return await base.AddBatchAsync(entities);
-        }
-
-        /// <summary>
-        /// 更新示例
-        /// </summary>
-        public async Task<bool> UpdateExample(FileInfos entity)
-        {
-            return await base.UpdateAsync(entity);
+                response.Data = data;
+                response.Total = total;
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "获取FileInfos列表失败");
+                throw new BIException("获取列表失败：" + ex.Message);
+            }
         }
 
         /// <summary>
-        /// 删除示例
+        /// 获取单个实体
         /// </summary>
-        public async Task<bool> DeleteExample(int id)
+        public override async Task<FileInfos> GetByIdAsync(object id)
         {
-            return await base.DeleteAsync(id);
+            try
+            {
+                var entity = await base.GetByIdAsync(id);
+                if (entity == null)
+                {
+                    throw new NotFoundException($"ID为{id}的记录不存在");
+                }
+                return entity;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "获取FileInfos信息失败");
+                throw new BIException("获取信息失败：" + ex.Message);
+            }
         }
 
         /// <summary>
-        /// 批量删除示例
+        /// 新增
         /// </summary>
-        public async Task<bool> DeleteBatchExample(int[] ids)
+        public override async Task<bool> AddAsync(FileInfos entity)
         {
-            return await base.DeleteBatchAsync(ids);
+            try
+            {
+                // 业务验证
+                if (entity == null)
+                {
+                    throw new BusinessException("数据不能为空");
+                }
+
+                return await base.AddAsync(entity);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "添加FileInfos失败");
+                throw new BIException("添加失败：" + ex.Message);
+            }
         }
+
+        /// <summary>
+        /// 更新
+        /// </summary>
+        public override async Task<bool> UpdateAsync(FileInfos entity)
+        {
+            try
+            {
+                // 业务验证
+                var oldEntity = await GetByIdAsync(entity.Id);
+                if (oldEntity == null)
+                {
+                    throw new NotFoundException($"ID为{entity.Id}的记录不存在");
+                }
+
+                return await base.UpdateAsync(entity);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "更新FileInfos失败");
+                throw new BIException("更新失败：" + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 删除
+        /// </summary>
+        public override async Task<bool> DeleteAsync(object id)
+        {
+            try
+            {
+                var entity = await GetByIdAsync(id);
+                if (entity == null)
+                {
+                    throw new NotFoundException($"ID为{id}的记录不存在");
+                }
+
+                return await base.DeleteAsync(id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "删除FileInfos失败");
+                throw new BIException("删除失败：" + ex.Message);
+            }
+        }
+        #endregion
+
+        #region 自定义方法
+        // 可以在这里添加自定义业务方法
         #endregion
     }
 }

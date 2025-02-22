@@ -12,4 +12,6 @@ public class QueryBaseParameter
     /// </summary>
     public int PageSize { get; set; } = 10;
     
+    public string? Keyword { get; set; }
+    
 }

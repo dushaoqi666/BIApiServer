@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using BIApiServer.Common.DbContexts;
+using BIApiServer.Exceptions;
 using BIApiServer.Interfaces;
 using BIApiServer.Models.InputDto;
 using BIApiServer.Models.Interfaces;
@@ -25,6 +26,19 @@ namespace BIApiServer.Services
         }
 
         /// <summary>
+        /// 获取查询对象（带软删除过滤）
+        /// </summary>
+        protected ISugarQueryable<T> GetQuery()
+        {
+            var query = _dbClient.Queryable<T>();
+            if (typeof(IDeletedFilter).IsAssignableFrom(typeof(T)))
+            {
+                query = query.Where("is_deleted = @isDeleted", new { isDeleted = false });
+            }
+            return query;
+        }
+
+        /// <summary>
         /// 获取分页列表
         /// </summary>
         public virtual async Task<ApiResponse<List<T>>> GetPageListAsync(QueryBaseParameter param)
@@ -32,9 +46,8 @@ namespace BIApiServer.Services
             var response = new ApiResponse<List<T>>();
             try
             {
-                var query = _dbClient.Queryable<T>();
+                var query = GetQuery();
                 var total = await query.CountAsync();
-
                 var data = await query
                     .OrderByDescending(GetOrderByExpression())
                     .ToPageListAsync(param.PageIndex, param.PageSize);
@@ -99,7 +112,7 @@ namespace BIApiServer.Services
         /// </summary>
         public virtual async Task<T> GetByIdAsync(object id)
         {
-            return await _dbClient.Queryable<T>().InSingleAsync(id);
+            return await GetQuery().InSingleAsync(id);
         }
 
         /// <summary>
@@ -139,15 +152,19 @@ namespace BIApiServer.Services
         /// </summary>
         public virtual async Task<bool> DeleteAsync(object id)
         {
-            try
+            var entity = await GetByIdAsync(id);
+            if (entity == null)
             {
-                return await _dbClient.Deleteable<T>().In(id).ExecuteCommandAsync() > 0;
+                throw new NotFoundException($"ID为{id}的记录不存在");
             }
-            catch (Exception ex)
+            
+            if (entity is IDeletedFilter softDelete)
             {
-                _logger.LogError(ex, "删除{EntityName}失败", typeof(T).Name);
-                throw;
+                softDelete.IsDeleted = true;
+                return await UpdateAsync(entity);
             }
+            
+            return await _dbClient.Deleteable<T>().In(id).ExecuteCommandAsync() > 0;
         }
 
         /// <summary>
@@ -155,15 +172,35 @@ namespace BIApiServer.Services
         /// </summary>
         public virtual async Task<bool> DeleteBatchAsync<TKey>(TKey[] ids)
         {
-            try
+            var entities = await GetListAsync(it => ids.Contains((TKey)it.GetType().GetProperty("Id").GetValue(it)));
+            foreach (var entity in entities)
             {
-                return await _dbClient.Deleteable<T>().In(ids).ExecuteCommandAsync() > 0;
+                if (entity is IDeletedFilter softDelete)
+                {
+                    softDelete.IsDeleted = true;
+                }
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "批量删除{EntityName}失败", typeof(T).Name);
-                throw;
-            }
+            return await UpdateRangeAsync(entities);
+        }
+
+        /// <summary>
+        /// 批量更新
+        /// </summary>
+        public virtual async Task<bool> UpdateRangeAsync(IEnumerable<T> entities)
+        {
+            // 转换为 List<T>
+            var entityList = entities.ToList();
+            return await _dbClient.Updateable(entityList).ExecuteCommandAsync() > 0;
+        }
+
+        /// <summary>
+        /// 获取列表（根据条件）
+        /// </summary>
+        public virtual async Task<List<T>> GetListAsync(Expression<Func<T, bool>> whereExpression)
+        {
+            return await GetQuery()
+                .Where(whereExpression)
+                .ToListAsync();
         }
     }
 } 

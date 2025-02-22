@@ -1,4 +1,5 @@
 
+using BIApiServer.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 using BIApiServer.Services;
 using BIApiServer.Models;
@@ -29,14 +30,13 @@ namespace BIApiServer.Controllers
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// GET /api/fileinfos/list?pageIndex=1&amp;pageSize=10
+        /// GET /api/fileinfos/getPageList?pageIndex=1&amp;pageSize=10
         /// </remarks>
-        [HttpGet("list")]
+        [HttpGet("getPageList")]
         [ProducesResponseType(typeof(List<FileInfos>), StatusCodes.Status200OK)]
-        public async Task<List<FileInfos>> GetList([FromQuery] QueryBaseParameter param)
+        public async Task<List<FileInfos>> GetPageList([FromQuery] QueryBaseParameter param)
         {
             var response = await _service.GetPageListAsync(param);
-            Response.Headers.Add("X-Total-Count", response.Total.ToString());
             return response.Data;
         }
 
@@ -45,10 +45,10 @@ namespace BIApiServer.Controllers
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// GET /api/fileinfos/1
+        /// GET /api/fileinfos/getById/1
         /// </remarks>
-        [HttpGet("{id}")]
-        public async Task<FileInfos> Get(long id)
+        [HttpGet("getById/{id}")]
+        public async Task<FileInfos> GetById(long id)
         {
             return await _service.GetByIdAsync(id);
         }
@@ -58,10 +58,10 @@ namespace BIApiServer.Controllers
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// POST /api/fileinfos
+        /// POST /api/fileinfos/add
         /// </remarks>
-        [HttpPost]
-        public async Task<bool> Post([FromBody] FileInfos entity)
+        [HttpPost("add")]
+        public async Task<bool> Add([FromBody] FileInfos entity)
         {
             return await _service.AddAsync(entity);
         }
@@ -71,38 +71,50 @@ namespace BIApiServer.Controllers
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// PUT /api/fileinfos
+        /// PUT /api/fileinfos/update
         /// </remarks>
-        [HttpPut]
-        public async Task<bool> Put([FromBody] FileInfos entity)
+        [HttpPut("update")]
+        public async Task<bool> Update([FromBody] FileInfos entity)
         {
             return await _service.UpdateAsync(entity);
         }
 
         /// <summary>
-        /// 删除
+        /// 删除（软删除）
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// DELETE /api/fileinfos/1
+        /// DELETE /api/fileinfos/delete/1
         /// </remarks>
-        [HttpDelete("{id}")]
+        [HttpDelete("delete/{id}")]
         public async Task<bool> Delete(long id)
         {
-            return await _service.DeleteAsync(id);
+            var entity = await _service.GetByIdAsync(id);
+            if (entity == null)
+            {
+                throw new NotFoundException($"ID为{id}的记录不存在");
+            }
+            
+            entity.IsDeleted = true;
+            return await _service.UpdateAsync(entity);
         }
 
         /// <summary>
-        /// 批量删除
+        /// 批量删除（软删除）
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// DELETE /api/fileinfos/batch
+        /// DELETE /api/fileinfos/batchDelete
         /// </remarks>
-        [HttpDelete("batch")]
+        [HttpDelete("batchDelete")]
         public async Task<bool> BatchDelete([FromBody] long[] ids)
         {
-            return await _service.DeleteBatchAsync(ids);
+            var entities = await _service.GetListAsync(it => ids.Contains(it.Id));
+            foreach (var entity in entities)
+            {
+                entity.IsDeleted = true;
+            }
+            return await _service.UpdateRangeAsync(entities);
         }
     }
 }

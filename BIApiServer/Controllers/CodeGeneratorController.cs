@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using BIApiServer.Utils;
 using System.IO;
 using System.Threading.Tasks;
+using System.Linq.Expressions;
+using BIApiServer.Exceptions;
 
 namespace BIApiServer.Controllers
 {
@@ -53,7 +55,9 @@ using BIApiServer.Interfaces;
 using BIApiServer.Models;
 using BIApiServer.Models.InputDto;
 using BIApiServer.Utils;
+using BIApiServer.Exceptions;
 using SqlSugar;
+using System.Linq.Expressions;
 
 namespace BIApiServer.Services
 {{
@@ -62,67 +66,143 @@ namespace BIApiServer.Services
     /// </summary>
     public class {entityName}Service : BaseService<{entityName}>
     {{
+        private readonly AppDbContext _db;
+        private readonly ILogger<{entityName}Service> _logger;
+
         public {entityName}Service(AppDbContext db, ILogger<{entityName}Service> logger) 
             : base(db, logger)
         {{
+            _db = db;
+            _logger = logger;
         }}
 
-        #region 基础CRUD调用示例
+        #region 重写基础方法
         /// <summary>
-        /// 分页查询示例
+        /// 获取分页列表
         /// </summary>
-        public async Task<ApiResponse<List<{entityName}>>> GetPageListExample(QueryBaseParameter param)
+        public override async Task<ApiResponse<List<{entityName}>>> GetPageListAsync(QueryBaseParameter param)
         {{
-            return await base.GetPageListAsync(param);
-        }}
+            var response = new ApiResponse<List<{entityName}>>();
+            try
+            {{
+                var query = base._dbClient.Queryable<{entityName}>()
+                    .Where(it => !it.IsDeleted); // 显式添加软删除过滤
+                
+                // 添加查询条件
+                if (!string.IsNullOrEmpty(param.Keyword))
+                {{
+                    query = query.Where(it => 
+                        it.Name.Contains(param.Keyword)
+                    );
+                }}
+                
+                var total = await query.CountAsync();
+                var data = await query
+                    .OrderByDescending(it => it.CreateTime)
+                    .ToPageListAsync(param.PageIndex, param.PageSize);
 
-        /// <summary>
-        /// 获取单个实体示例
-        /// </summary>
-        public async Task<{entityName}> GetByIdExample(int id)
-        {{
-            return await base.GetByIdAsync(id);
-        }}
-
-        /// <summary>
-        /// 新增示例
-        /// </summary>
-        public async Task<bool> AddExample({entityName} entity)
-        {{
-            return await base.AddAsync(entity);
-        }}
-
-        /// <summary>
-        /// 批量新增示例
-        /// </summary>
-        public async Task<bool> AddBatchExample(List<{entityName}> entities)
-        {{
-            return await base.AddBatchAsync(entities);
-        }}
-
-        /// <summary>
-        /// 更新示例
-        /// </summary>
-        public async Task<bool> UpdateExample({entityName} entity)
-        {{
-            return await base.UpdateAsync(entity);
+                response.Data = data;
+                response.Total = total;
+                return response;
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""获取{entityName}列表失败"");
+                throw new BIException(""获取列表失败："" + ex.Message);
+            }}
         }}
 
         /// <summary>
-        /// 删除示例
+        /// 获取单个实体
         /// </summary>
-        public async Task<bool> DeleteExample(int id)
+        public override async Task<{entityName}> GetByIdAsync(object id)
         {{
-            return await base.DeleteAsync(id);
+            try
+            {{
+                var entity = await base.GetByIdAsync(id);
+                if (entity == null)
+                {{
+                    throw new NotFoundException($""ID为{{id}}的记录不存在"");
+                }}
+                return entity;
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""获取{entityName}信息失败"");
+                throw new BIException(""获取信息失败："" + ex.Message);
+            }}
         }}
 
         /// <summary>
-        /// 批量删除示例
+        /// 新增
         /// </summary>
-        public async Task<bool> DeleteBatchExample(int[] ids)
+        public override async Task<bool> AddAsync({entityName} entity)
         {{
-            return await base.DeleteBatchAsync(ids);
+            try
+            {{
+                // 业务验证
+                if (entity == null)
+                {{
+                    throw new BusinessException(""数据不能为空"");
+                }}
+
+                return await base.AddAsync(entity);
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""添加{entityName}失败"");
+                throw new BIException(""添加失败："" + ex.Message);
+            }}
         }}
+
+        /// <summary>
+        /// 更新
+        /// </summary>
+        public override async Task<bool> UpdateAsync({entityName} entity)
+        {{
+            try
+            {{
+                // 业务验证
+                var oldEntity = await GetByIdAsync(entity.Id);
+                if (oldEntity == null)
+                {{
+                    throw new NotFoundException($""ID为{{entity.Id}}的记录不存在"");
+                }}
+
+                return await base.UpdateAsync(entity);
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""更新{entityName}失败"");
+                throw new BIException(""更新失败："" + ex.Message);
+            }}
+        }}
+
+        /// <summary>
+        /// 删除
+        /// </summary>
+        public override async Task<bool> DeleteAsync(object id)
+        {{
+            try
+            {{
+                var entity = await GetByIdAsync(id);
+                if (entity == null)
+                {{
+                    throw new NotFoundException($""ID为{{id}}的记录不存在"");
+                }}
+
+                return await base.DeleteAsync(id);
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""删除{entityName}失败"");
+                throw new BIException(""删除失败："" + ex.Message);
+            }}
+        }}
+        #endregion
+
+        #region 自定义方法
+        // 可以在这里添加自定义业务方法
         #endregion
     }}
 }}";
@@ -169,14 +249,13 @@ namespace BIApiServer.Controllers
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// GET /api/{entityName.ToLower()}/list?pageIndex=1&amp;pageSize=10
+        /// GET /api/{entityName.ToLower()}/getPageList?pageIndex=1&amp;pageSize=10
         /// </remarks>
-        [HttpGet(""list"")]
+        [HttpGet(""getPageList"")]
         [ProducesResponseType(typeof(List<{entityName}>), StatusCodes.Status200OK)]
-        public async Task<List<{entityName}>> GetList([FromQuery] QueryBaseParameter param)
+        public async Task<List<{entityName}>> GetPageList([FromQuery] QueryBaseParameter param)
         {{
             var response = await _service.GetPageListAsync(param);
-            Response.Headers.Add(""X-Total-Count"", response.Total.ToString());
             return response.Data;
         }}
 
@@ -185,10 +264,10 @@ namespace BIApiServer.Controllers
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// GET /api/{entityName.ToLower()}/1
+        /// GET /api/{entityName.ToLower()}/getById/1
         /// </remarks>
-        [HttpGet(""{{id}}"")]
-        public async Task<{entityName}> Get(long id)
+        [HttpGet(""getById/{{id}}"")]
+        public async Task<{entityName}> GetById(long id)
         {{
             return await _service.GetByIdAsync(id);
         }}
@@ -198,10 +277,10 @@ namespace BIApiServer.Controllers
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// POST /api/{entityName.ToLower()}
+        /// POST /api/{entityName.ToLower()}/add
         /// </remarks>
-        [HttpPost]
-        public async Task<bool> Post([FromBody] {entityName} entity)
+        [HttpPost(""add"")]
+        public async Task<bool> Add([FromBody] {entityName} entity)
         {{
             return await _service.AddAsync(entity);
         }}
@@ -211,38 +290,50 @@ namespace BIApiServer.Controllers
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// PUT /api/{entityName.ToLower()}
+        /// PUT /api/{entityName.ToLower()}/update
         /// </remarks>
-        [HttpPut]
-        public async Task<bool> Put([FromBody] {entityName} entity)
+        [HttpPut(""update"")]
+        public async Task<bool> Update([FromBody] {entityName} entity)
         {{
             return await _service.UpdateAsync(entity);
         }}
 
         /// <summary>
-        /// 删除
+        /// 删除（软删除）
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// DELETE /api/{entityName.ToLower()}/1
+        /// DELETE /api/{entityName.ToLower()}/delete/1
         /// </remarks>
-        [HttpDelete(""{{id}}"")]
+        [HttpDelete(""delete/{{id}}"")]
         public async Task<bool> Delete(long id)
         {{
-            return await _service.DeleteAsync(id);
+            var entity = await _service.GetByIdAsync(id);
+            if (entity == null)
+            {{
+                throw new NotFoundException($""ID为{{id}}的记录不存在"");
+            }}
+            
+            entity.IsDeleted = true;
+            return await _service.UpdateAsync(entity);
         }}
 
         /// <summary>
-        /// 批量删除
+        /// 批量删除（软删除）
         /// </summary>
         /// <remarks>
         /// 示例请求:
-        /// DELETE /api/{entityName.ToLower()}/batch
+        /// DELETE /api/{entityName.ToLower()}/batchDelete
         /// </remarks>
-        [HttpDelete(""batch"")]
+        [HttpDelete(""batchDelete"")]
         public async Task<bool> BatchDelete([FromBody] long[] ids)
         {{
-            return await _service.DeleteBatchAsync(ids);
+            var entities = await _service.GetListAsync(it => ids.Contains(it.Id));
+            foreach (var entity in entities)
+            {{
+                entity.IsDeleted = true;
+            }}
+            return await _service.UpdateRangeAsync(entities);
         }}
     }}
 }}";

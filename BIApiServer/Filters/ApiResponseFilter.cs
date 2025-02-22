@@ -23,7 +23,7 @@ public class ApiResponseFilter : IActionFilter
             var response = new ApiResponse<object>
             {
                 Code = StatusCodes.Status200OK,
-                Message = "Success",
+                Message = "success",
                 Data = objectResult.Value
             };
 

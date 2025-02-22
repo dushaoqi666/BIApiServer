@@ -124,19 +124,13 @@ SQL: {exp.Sql}
             // 创建SqlSugarScope实例
             _db = new SqlSugarScope(connectionConfigs);
 
-            // 修改查询过滤器配置
-            _db.QueryFilter.AddTableFilter<IDeletedFilter>(it => it.IsDeleted == false);
-
             // 全局设置参数
             _db.CurrentConnectionConfig.ConfigureExternalServices = new ConfigureExternalServices
             {
-                // 配置实体服务
                 EntityService = (property, column) =>
                 {
-                    // 如果属性类型为枚举
                     if (property.PropertyType.IsEnum)
                     {
-                        // 设置数据库列数据类型为int
                         column.DataType = "int";
                     }
                 }
