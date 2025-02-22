@@ -1,4 +1,4 @@
-﻿using BIApiServer.Common.DbContexts;
+using BIApiServer.Common.DbContexts;
 using SqlSugar;
 using System.Reflection;
 using BIApiServer.Interfaces;
@@ -9,12 +9,13 @@ namespace BIApiServer.Services
     public class AddTableService : IScopedService
     {
         private static AppDbContext _db;
+        private readonly ILogger<AddTableService> _logger;
 
-        public AddTableService(AppDbContext db)
+        public AddTableService(AppDbContext db, ILogger<AddTableService> logger)
         {
             _db = db;
+            _logger = logger;
         }
-
         public async void AddTable()
         {
             var ass = Assembly.GetAssembly(typeof(EntityBases));
@@ -27,14 +28,50 @@ namespace BIApiServer.Services
                 await InitTable(tp);
             }
         }
-
         public async Task InitTable(Type tp)
         {
-            var attr = tp.GetCustomAttribute<SugarTable>();
-            if (attr != null)
+            try
             {
+                // 如果主键发生改变使用这里     不要删除！
+                // if (tp == typeof(FileInfos))
+                // {
+                //     try
+                //     {
+                //         // 先检查表是否存在
+                //         var tableExists = _db.Default.DbMaintenance.IsAnyTable("Files");
+                //         if (tableExists)
+                //         {
+                //             // 如果表存在，先删除表
+                //             _db.Default.DbMaintenance.DropTable("Files");
+                //             _logger.LogInformation("已删除旧的Files表");
+                //         }
+                //     }
+                //     catch (Exception ex)
+                //     {
+                //         _logger.LogWarning(ex, "删除旧表失败");
+                //     }
+                // }
+
+                
+                
+                
+                // 创建新表
                 _db.Default.CodeFirst.InitTables(tp);
+                _logger.LogInformation($"表 {tp.Name} 初始化成功");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"初始化表 {tp.Name} 失败");
+                throw;
             }
         }
+        // public async Task InitTable(Type tp)
+        // {
+        //     var attr = tp.GetCustomAttribute<SugarTable>();
+        //     if (attr != null)
+        //     {
+        //         _db.Default.CodeFirst.InitTables(tp);
+        //     }
+        // }
     }
 }
