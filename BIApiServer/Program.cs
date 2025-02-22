@@ -16,11 +16,11 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 // Configure Serilog   配置Serilog
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Debug() // 设置最小日志级别
-    .WriteTo.Console() // 可选：同时输出到控制台
-    .WriteTo.File("Logs/BIAPILog.log", rollingInterval: RollingInterval.Day) // 将日志写入文件，并每天滚动
-    .CreateLogger();
+// Log.Logger = new LoggerConfiguration()
+//     .MinimumLevel.Debug() // 设置最小日志级别
+//     .WriteTo.Console() // 可选：同时输出到控制台
+//     .WriteTo.File("Logs/BIAPILog.log", rollingInterval: RollingInterval.Day) // 将日志写入文件，并每天滚动
+//     .CreateLogger();
 //使用Serilog
 builder.Host.UseSerilog();
 // 初始化 SqlSugar 配置
@@ -85,8 +85,8 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// 添加 SqlSugar 服务
-builder.Services.AddScoped<SqlSugarScope>(sp => { return SqlSugarConfig.GetInstance(); });
+// 添加 SqlSugar 服务（使用单例模式）
+builder.Services.AddSingleton<SqlSugarScope>(sp => SqlSugarConfig.GetInstance());
 
 // 添加统一的数据库上下文
 builder.Services.AddScoped<AppDbContext>();

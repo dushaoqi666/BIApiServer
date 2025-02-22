@@ -52,13 +52,13 @@ namespace BIApiServer.Services
                 }
 
                 var query = _db.Default.Queryable<FileInfos>();
+                
+                // 输出实际执行的 SQL
+                var sql = query.ToSql();
+                Console.WriteLine($"Generated SQL: {sql.Key}");
+                Console.WriteLine($"Parameters: {string.Join(", ", sql.Value)}");
+
                 var total = await query.CountAsync();
-
-                if (total == 0)
-                {
-                    throw new NotFoundException("没有找到任何文件记录");
-                }
-
                 var data = await query
                     .OrderBy(it => it.CreateTime, OrderByType.Desc)
                     .ToPageListAsync(param.PageIndex, param.PageSize);

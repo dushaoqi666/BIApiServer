@@ -3,7 +3,7 @@ using SqlSugar;
 using System.Reflection;
 using BIApiServer.Interfaces;
 using BIApiServer.Models;
-
+using BIApiServer.Models.Interfaces;
 namespace BIApiServer.Services
 {
     public class AddTableService : IScopedService
