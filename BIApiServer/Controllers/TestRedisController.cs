@@ -5,11 +5,11 @@ namespace BIApiServer.Controllers;
 
 [ApiController]
 [Route("api/test")]
-public class TestController : ControllerBase
+public class TestRedisController : ControllerBase
 {
     private readonly RedisService _redis;
 
-    public TestController(RedisService redis)
+    public TestRedisController(RedisService redis)
     {
         _redis = redis;
     }
