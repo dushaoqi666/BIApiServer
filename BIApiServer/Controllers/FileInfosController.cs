@@ -1,10 +1,8 @@
-
 using BIApiServer.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 using BIApiServer.Services;
 using BIApiServer.Models;
 using BIApiServer.Models.InputDto;
-using BIApiServer.Utils;
 
 namespace BIApiServer.Controllers
 {
