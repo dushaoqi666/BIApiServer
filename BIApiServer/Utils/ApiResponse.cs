@@ -5,6 +5,7 @@ namespace BIApiServer.Utils
         public int Code { get; set; }
         public string Message { get; set; }
         public T Data { get; set; }
+        public long Total { get; set; }
 
         public static ApiResponse<T> Success(T data)
         {

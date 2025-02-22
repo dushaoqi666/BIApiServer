@@ -3,7 +3,7 @@
 namespace BIApiServer.Models;
 
  [SugarTable("Files", TableDescription = "文件表")]
-    public class FileInfos : Entity
+    public class FileInfos : EntityBases
     {
         /// <summary>
         /// 文件名称

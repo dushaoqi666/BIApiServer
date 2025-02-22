@@ -6,6 +6,7 @@ using AutoMapper;
 using BIApiServer.Models.Dtos;
 using BIApiServer.Common.DbContexts;
 using BIApiServer.Interfaces;
+using BIApiServer.Utils;
 
 namespace BIApiServer.Services
 {
@@ -29,9 +30,9 @@ namespace BIApiServer.Services
             _mapper = mapper;
         }
 
-        public async Task<PagedApiResponse<List<FileInfoDto>>> GetFileListAsync(QueryBaseParameter param)
+        public async Task<ApiResponse<List<FileInfoDto>>> GetFileListAsync(QueryBaseParameter param)
         {
-            var response = new PagedApiResponse<List<FileInfoDto>>();
+            var response = new ApiResponse<List<FileInfoDto>>();
 
             try
             {
@@ -43,7 +44,7 @@ namespace BIApiServer.Services
 
                 // 尝试从缓存获取数据
                 var cacheKey = $"{FILE_LIST_CACHE_KEY}{param.PageIndex}:{param.PageSize}";
-                var cachedResponse = await _redisService.GetObjectAsync<PagedApiResponse<List<FileInfoDto>>>(cacheKey);
+                var cachedResponse = await _redisService.GetObjectAsync<ApiResponse<List<FileInfoDto>>>(cacheKey);
 
                 if (cachedResponse != null)
                 {

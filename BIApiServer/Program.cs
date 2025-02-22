@@ -151,11 +151,11 @@ builder.Services.AddHttpClient("TaskExecutor").ConfigurePrimaryHttpMessageHandle
 var app = builder.Build();
 
 // 初始化数据库表
-// using (var scope = app.Services.CreateScope())
-// {
-//     var tableService = scope.ServiceProvider.GetRequiredService<AddTableService>();
-//      tableService.AddTable();
-// }
+using (var scope = app.Services.CreateScope())
+{
+    var tableService = scope.ServiceProvider.GetRequiredService<AddTableService>();
+     tableService.AddTable();
+}
 
 // 启用静态文件
 app.UseStaticFiles();

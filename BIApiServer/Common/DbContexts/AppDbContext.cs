@@ -19,17 +19,8 @@ namespace BIApiServer.Common.DbContexts
         /// <summary>
         /// 第二个数据库
         /// </summary>
-        public SqlSugarProvider DB2 => _db.GetConnection("DB2");
-
-        /// <summary>
-        /// 第三个数据库
-        /// </summary>
-        public SqlSugarProvider DB3 => _db.GetConnection("DB3");
-        /// <summary>
-        /// BI数据库
-        /// </summary>
-        public SqlSugarProvider BIDB => _db.GetConnection("BIDB");
-
+        // public SqlSugarProvider DB2 => _db.GetConnection("DB2");
+        
         
         /// <summary>
         /// 获取指定数据库连接

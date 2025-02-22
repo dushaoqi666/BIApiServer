@@ -16,7 +16,7 @@ namespace BIApiServer.Services
             _fileApi = fileApi;
         }
 
-        public async Task<PagedApiResponse<List<FileInfoDto>>> GetFileListAsync(QueryBaseParameter param)
+        public async Task<ApiResponse<List<FileInfoDto>>> GetFileListAsync(QueryBaseParameter param)
         {
             try
             {

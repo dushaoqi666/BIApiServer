@@ -2,6 +2,7 @@ using BIApiServer.Models;
 using BIApiServer.Models.InputDto;
 using BIApiServer.Services;
 using BIApiServer.Models.Dtos;
+using BIApiServer.Utils;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BIApiServer.Controllers
@@ -13,7 +14,7 @@ namespace BIApiServer.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Produces("application/json")]
-    [ProducesResponseType(typeof(ApiResponseBase<object>), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public class FileController : ControllerBase
     {
         private readonly FileService _fileService;
@@ -37,11 +38,11 @@ namespace BIApiServer.Controllers
         /// <response code="200">成功获取文件列表</response>
         /// <response code="400">请求参数无效</response>
         /// <response code="404">未找到任何文件</response>
-        [ProducesResponseType(typeof(PagedApiResponse<List<FileInfoDto>>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponseBase<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponseBase<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<List<FileInfoDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [HttpGet("list")]
-        public async Task<PagedApiResponse<List<FileInfoDto>>> GetFileList([FromQuery] QueryBaseParameter param)
+        public async Task<ApiResponse<List<FileInfoDto>>> GetFileList([FromQuery] QueryBaseParameter param)
         {
             return await _fileService.GetFileListAsync(param);
         }

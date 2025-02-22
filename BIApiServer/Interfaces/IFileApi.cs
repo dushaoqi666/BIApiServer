@@ -8,7 +8,7 @@ namespace BIApiServer.Interfaces
     public interface IFileApi
     {
         [Get("/api/file/list")]
-        Task<PagedApiResponse<List<FileInfoDto>>> GetFileList([Query] QueryBaseParameter param);
+        Task<ApiResponse<List<FileInfoDto>>> GetFileList([Query] QueryBaseParameter param);
 
         [Delete("/api/file/{id}")]
         Task DeleteFile(long id);

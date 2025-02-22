@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using BIApiServer.Exceptions;
 using BIApiServer.Models;
+using BIApiServer.Utils;
 
 namespace BIApiServer.Middlewares
 {
@@ -31,7 +32,7 @@ namespace BIApiServer.Middlewares
         private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             context.Response.ContentType = "application/json";
-            var response = new ApiResponseBase<object>();
+            var response = new ApiResponse<object>();
 
             switch (exception)
             {
