@@ -12,8 +12,17 @@ using BIApiServer.Common.Mappings;
 using Swashbuckle.AspNetCore.SwaggerUI;
 using BIApiServer.Common.DbContexts;
 using BIApiServer.Services;
-var builder = WebApplication.CreateBuilder(args);
+using Serilog;
 
+var builder = WebApplication.CreateBuilder(args);
+// Configure Serilog   配置Serilog
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug() // 设置最小日志级别
+    .WriteTo.Console() // 可选：同时输出到控制台
+    .WriteTo.File("Logs/BIAPILog.log", rollingInterval: RollingInterval.Day) // 将日志写入文件，并每天滚动
+    .CreateLogger();
+//使用Serilog
+builder.Host.UseSerilog();
 // 初始化 SqlSugar 配置
 SqlSugarConfig.Initialize(builder.Configuration);
 
@@ -33,12 +42,12 @@ builder.Services.AddSwaggerGen(c =>
             Email = "569909513@qq.com"
         }
     });
-    
+
     // 添加XML注释
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     c.IncludeXmlComments(xmlPath);
-    
+
     // 添加通用参数
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -54,10 +63,10 @@ builder.Services.AddSwaggerGen(c =>
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference 
-                { 
-                    Type = ReferenceType.SecurityScheme, 
-                    Id = "Bearer" 
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
                 }
             },
             Array.Empty<string>()
@@ -71,15 +80,13 @@ builder.Services.AddSwaggerGen(c =>
         {
             return new[] { api.GroupName };
         }
+
         return new[] { api.ActionDescriptor.RouteValues["controller"] };
     });
 });
 
 // 添加 SqlSugar 服务
-builder.Services.AddScoped<SqlSugarScope>(sp =>
-{
-    return SqlSugarConfig.GetInstance();
-});
+builder.Services.AddScoped<SqlSugarScope>(sp => { return SqlSugarConfig.GetInstance(); });
 
 // 添加统一的数据库上下文
 builder.Services.AddScoped<AppDbContext>();
@@ -103,7 +110,7 @@ builder.Services.AddTransient<HttpClientLoggingHandler>();
 
 // 添加 Refit 客户端
 builder.Services.AddRefitClient<IFileApi>(RefitConfig.GetDefaultSettings())
-    .ConfigureHttpClient(c => 
+    .ConfigureHttpClient(c =>
         c.BaseAddress = new Uri(builder.Configuration["ApiSettings:ApiBaseUrlOne"]))
     .AddHttpMessageHandler<HttpClientLoggingHandler>()
     .SetHandlerLifetime(TimeSpan.FromMinutes(5));
@@ -118,16 +125,13 @@ builder.Services.AddCors(options =>
         builder =>
         {
             builder.AllowAnyOrigin()
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
+                .AllowAnyMethod()
+                .AllowAnyHeader();
         });
 });
 
 // 添加全局过滤器
-builder.Services.AddControllers(options =>
-{
-    options.Filters.Add<ApiResponseFilter>();
-});
+builder.Services.AddControllers(options => { options.Filters.Add<ApiResponseFilter>(); });
 
 // 自动注册其他服务（包括 TaskManagementService）
 builder.Services.AddApplicationServices();
@@ -141,9 +145,10 @@ builder.Services.AddHttpClient("TaskExecutor").ConfigurePrimaryHttpMessageHandle
     var handler = new HttpClientHandler();
     if (builder.Environment.IsDevelopment())
     {
-        handler.ServerCertificateCustomValidationCallback = 
+        handler.ServerCertificateCustomValidationCallback =
             HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
     }
+
     return handler;
 });
 // //更新表结构
@@ -154,7 +159,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var tableService = scope.ServiceProvider.GetRequiredService<AddTableService>();
-     tableService.AddTable();
+    tableService.AddTable();
 }
 
 // 启用静态文件
