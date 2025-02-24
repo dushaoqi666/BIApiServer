@@ -26,6 +26,7 @@
     <PackageReference Include="StackExchange.Redis" Version="2.8.24" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="Quartz" Version="3.8.0" />
+    <PackageReference Include="System.CodeDom" Version="9.0.2" />
   </ItemGroup>
 
   <ItemGroup>
