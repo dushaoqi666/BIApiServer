@@ -40,12 +40,4 @@
     </None>
   </ItemGroup>
 
-  <ItemGroup>
-    <Compile Update="Template\CodeGenerator.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>CodeGenerator.tt</DependentUpon>
-    </Compile>
-  </ItemGroup>
-
 </Project>

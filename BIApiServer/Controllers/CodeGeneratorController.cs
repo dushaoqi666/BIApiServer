@@ -224,6 +224,7 @@ using BIApiServer.Services;
 using BIApiServer.Models;
 using BIApiServer.Models.InputDto;
 using BIApiServer.Utils;
+using BIApiServer.Exceptions;
 
 namespace BIApiServer.Controllers
 {{
