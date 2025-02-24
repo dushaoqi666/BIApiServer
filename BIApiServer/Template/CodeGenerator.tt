@@ -1,0 +1,262 @@
+﻿<#@ template language="C#" hostspecific="true" #>
+<#@ output extension=".cs" #>
+<#@ parameter name="EntityName" type="System.String" #>
+<#
+    string EntityName = "FileInfos"; // 替换为您需要生成的实体名称
+#>
+<#@ import namespace="System.IO" #>
+
+<#
+    // 生成 Controller 文件
+    GenerateControllerFile(EntityName);
+
+    // 生成 Service 文件
+    GenerateServiceFile(EntityName);
+#>
+
+<#+
+    private void GenerateControllerFile(string entityName)
+    {
+        string controllerContent = $@"
+using Microsoft.AspNetCore.Mvc;
+using BIApiServer.Services;
+using BIApiServer.Models;
+using BIApiServer.Models.InputDto;
+using BIApiServer.Utils;
+using BIApiServer.Exceptions;
+
+namespace BIApiServer.Controllers
+{{
+    /// <summary>
+    /// {entityName}管理
+    /// </summary>
+    [Tags(""{entityName}管理"")]
+    [ApiController]
+    [Route(""api/[controller]"")]
+    public class {entityName}Controller : ControllerBase
+    {{
+        private readonly {entityName}Service _service;
+        private readonly ILogger<{entityName}Controller> _logger;
+
+        public {entityName}Controller({entityName}Service service, ILogger<{entityName}Controller> logger)
+        {{
+            _service = service;
+            _logger = logger;
+        }}
+
+        /// <summary>
+        /// 获取分页列表
+        /// </summary>
+        [HttpGet(""getPageList"")]
+        public async Task<IActionResult> GetPageList([FromQuery] QueryBaseParameter param)
+        {{
+            var response = await _service.GetPageListAsync(param);
+            return Ok(response.Data);
+        }}
+
+        /// <summary>
+        /// 获取单个实体
+        /// </summary>
+        [HttpGet(""getById/{{id}}"")]
+        public async Task<IActionResult> GetById(long id)
+        {{
+            return Ok(await _service.GetByIdAsync(id));
+        }}
+
+        /// <summary>
+        /// 新增
+        /// </summary>
+        [HttpPost(""add"")]
+        public async Task<IActionResult> Add([FromBody] {entityName} entity)
+        {{
+            return Ok(await _service.AddAsync(entity));
+        }}
+
+        /// <summary>
+        /// 更新
+        /// </summary>
+        [HttpPut(""update"")]
+        public async Task<IActionResult> Update([FromBody] {entityName} entity)
+        {{
+            return Ok(await _service.UpdateAsync(entity));
+        }}
+
+        /// <summary>
+        /// 删除（软删除）
+        /// </summary>
+        [HttpDelete(""delete/{{id}}"")]
+        public async Task<IActionResult> Delete(long id)
+        {{
+            var entity = await _service.GetByIdAsync(id);
+            if (entity == null)
+            {{
+                throw new NotFoundException($""ID为{{id}}的记录不存在"");
+            }}
+
+            entity.IsDeleted = true;
+            return Ok(await _service.UpdateAsync(entity));
+        }}
+    }}
+}}";
+
+        // 使用相对路径指定 Controllers 文件夹
+        string controllersPath = Path.Combine(this.Host.ResolvePath(".."), "Controllers");
+        Directory.CreateDirectory(controllersPath);
+        File.WriteAllText(Path.Combine(controllersPath, $"{entityName}Controller.cs"), controllerContent);
+    }
+
+    private void GenerateServiceFile(string entityName)
+    {
+        string serviceContent = $@"
+using BIApiServer.Common.DbContexts;
+using BIApiServer.Interfaces;
+using BIApiServer.Models;
+using BIApiServer.Models.InputDto;
+using BIApiServer.Utils;
+using BIApiServer.Exceptions;
+using SqlSugar;
+using System.Linq.Expressions;
+
+namespace BIApiServer.Services
+{{
+    /// <summary>
+    /// {entityName}服务
+    /// </summary>
+    public class {entityName}Service : BaseService<{entityName}>
+    {{
+        private readonly AppDbContext _db;
+        private readonly ILogger<{entityName}Service> _logger;
+
+        public {entityName}Service(AppDbContext db, ILogger<{entityName}Service> logger) 
+            : base(db, logger)
+        {{
+            _db = db;
+            _logger = logger;
+        }}
+
+        /// <summary>
+        /// 获取分页列表
+        /// </summary>
+        public override async Task<ApiResponse<List<{entityName}>>> GetPageListAsync(QueryBaseParameter param)
+        {{
+            var response = new ApiResponse<List<{entityName}>>();
+            try
+            {{
+                var query = base._dbClient.Queryable<{entityName}>()
+                    .Where(it => !it.IsDeleted); // 显式添加软删除过滤
+
+                if (!string.IsNullOrEmpty(param.Keyword))
+                {{
+                    query = query.Where(it => it.Name.Contains(param.Keyword));
+                }}
+
+                var total = await query.CountAsync();
+                var data = await query
+                    .OrderByDescending(it => it.CreateTime)
+                    .ToPageListAsync(param.PageIndex, param.PageSize);
+
+                response.Data = data;
+                response.Total = total;
+                return response;
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""获取{entityName}列表失败"");
+                throw new BIException(""获取列表失败："" + ex.Message);
+            }}
+        }}
+
+        /// <summary>
+        /// 获取单个实体
+        /// </summary>
+        public override async Task<{entityName}> GetByIdAsync(object id)
+        {{
+            try
+            {{
+                var entity = await base.GetByIdAsync(id);
+                if (entity == null)
+                {{
+                    throw new NotFoundException($""ID为{{id}}的记录不存在"");
+                }}
+                return entity;
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""获取{entityName}信息失败"");
+                throw new BIException(""获取信息失败："" + ex.Message);
+            }}
+        }}
+
+        /// <summary>
+        /// 新增
+        /// </summary>
+        public override async Task<bool> AddAsync({entityName} entity)
+        {{
+            try
+            {{
+                if (entity == null)
+                {{
+                    throw new BusinessException(""数据不能为空"");
+                }}
+
+                return await base.AddAsync(entity);
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""添加{entityName}失败"");
+                throw new BIException(""添加失败："" + ex.Message);
+            }}
+        }}
+
+        /// <summary>
+        /// 更新
+        /// </summary>
+        public override async Task<bool> UpdateAsync({entityName} entity)
+        {{
+            try
+            {{
+                var oldEntity = await GetByIdAsync(entity.Id);
+                if (oldEntity == null)
+                {{
+                    throw new NotFoundException($""ID为{{entity.Id}}的记录不存在"");
+                }}
+
+                return await base.UpdateAsync(entity);
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""更新{entityName}失败"");
+                throw new BIException(""更新失败："" + ex.Message);
+            }}
+        }}
+
+        /// <summary>
+        /// 删除
+        /// </summary>
+        public override async Task<bool> DeleteAsync(object id)
+        {{
+            try
+            {{
+                var entity = await GetByIdAsync(id);
+                if (entity == null)
+                {{
+                    throw new NotFoundException($""ID为{{id}}的记录不存在"");
+                }}
+
+                return await base.DeleteAsync(id);
+            }}
+            catch (Exception ex)
+            {{
+                _logger.LogError(ex, ""删除{entityName}失败"");
+                throw new BIException(""删除失败："" + ex.Message);
+            }}
+        }}
+    }}
+}}";
+
+        // 使用相对路径指定 Services 文件夹
+        string servicesPath = Path.Combine(this.Host.ResolvePath(".."), "Services");
+        Directory.CreateDirectory(servicesPath);
+        File.WriteAllText(Path.Combine(servicesPath, $"{entityName}Service.cs"), serviceContent);
+    }
+#>
