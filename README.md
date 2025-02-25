@@ -91,9 +91,11 @@ BIApiServer/
 
 ### 使用方法
 
-例如，要为 FileInfos 实体生成代码：
+方法一：通过Swagger，例如，要为 FileInfos 实体生成代码：
 http
 POST /api/codegenerator/generate?entityName=FileInfos
+
+方法二：通过CodeGenerato一键运行生成
 
 
 ### 生成的代码结构
