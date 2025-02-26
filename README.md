@@ -50,7 +50,7 @@ BIApiServer/
 
 ## 配置说明
 
-- `appsettings.json`: 主配置文件
+- `appsettings.Production`: 生产环境配置文件
 - `appsettings.Development.json`: 开发环境配置
 
 ## API 文档
