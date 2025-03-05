@@ -25,6 +25,7 @@ namespace BIApiServer.Services
             _logger = logger;
         }
 
+        #region 重写基础方法
         /// <summary>
         /// 获取分页列表
         /// </summary>
@@ -35,12 +36,15 @@ namespace BIApiServer.Services
             {
                 var query = base._dbClient.Queryable<FileInfos>()
                     .Where(it => !it.IsDeleted); // 显式添加软删除过滤
-
+                
+                // 添加查询条件
                 if (!string.IsNullOrEmpty(param.Keyword))
                 {
-                    query = query.Where(it => it.Name.Contains(param.Keyword));
+                    query = query.Where(it => 
+                        it.Name.Contains(param.Keyword)
+                    );
                 }
-
+                
                 var total = await query.CountAsync();
                 var data = await query
                     .OrderByDescending(it => it.CreateTime)
@@ -85,6 +89,7 @@ namespace BIApiServer.Services
         {
             try
             {
+                // 业务验证
                 if (entity == null)
                 {
                     throw new BusinessException("数据不能为空");
@@ -106,6 +111,7 @@ namespace BIApiServer.Services
         {
             try
             {
+                // 业务验证
                 var oldEntity = await GetByIdAsync(entity.Id);
                 if (oldEntity == null)
                 {
@@ -142,5 +148,10 @@ namespace BIApiServer.Services
                 throw new BIException("删除失败：" + ex.Message);
             }
         }
+        #endregion
+
+        #region 自定义方法
+        // 可以在这里添加自定义业务方法
+        #endregion
     }
 }

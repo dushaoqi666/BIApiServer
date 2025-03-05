@@ -11,10 +11,13 @@ using BIApiServer.Handlers;
 using BIApiServer.Common.Mappings;
 using Swashbuckle.AspNetCore.SwaggerUI;
 using BIApiServer.Common.DbContexts;
+using BIApiServer.Filters;
 using BIApiServer.Services;
+using OfficeOpenXml;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
 // Configure Serilog   配置Serilog
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug() // 设置最小日志级别
@@ -23,11 +26,18 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 //使用Serilog
 builder.Host.UseSerilog();
+
 // 初始化 SqlSugar 配置
 SqlSugarConfig.Initialize(builder.Configuration);
 
+// EPPlus 7.x 版本的设置方式
+ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => 
+{ 
+    options.Filters.Add<ApiResponseFilter>(); 
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -83,10 +93,13 @@ builder.Services.AddSwaggerGen(c =>
 
         return new[] { api.ActionDescriptor.RouteValues["controller"] };
     });
+
+    // 添加文件上传支持
+    c.OperationFilter<FileUploadOperationFilter>();
 });
 
-// 添加 SqlSugar 服务（使用单例模式）
-builder.Services.AddSingleton<SqlSugarScope>(sp => SqlSugarConfig.GetInstance());
+// 添加 SqlSugar 服务
+builder.Services.AddScoped<SqlSugarScope>(sp => { return SqlSugarConfig.GetInstance(); });
 
 // 添加统一的数据库上下文
 builder.Services.AddScoped<AppDbContext>();
@@ -109,9 +122,9 @@ else
 builder.Services.AddTransient<HttpClientLoggingHandler>();
 
 // 添加 Refit 客户端
-builder.Services.AddRefitClient<IFileApi>(RefitConfig.GetDefaultSettings())
+builder.Services.AddRefitClient<IDingTalkService>(RefitConfig.GetDefaultSettings())
     .ConfigureHttpClient(c =>
-        c.BaseAddress = new Uri(builder.Configuration["ApiSettings:ApiBaseUrlOne"]))
+        c.BaseAddress = new Uri(builder.Configuration["DingTalk:CompanyApiUri"]))
     .AddHttpMessageHandler<HttpClientLoggingHandler>()
     .SetHandlerLifetime(TimeSpan.FromMinutes(5));
 
@@ -130,10 +143,7 @@ builder.Services.AddCors(options =>
         });
 });
 
-// 添加全局过滤器
-builder.Services.AddControllers(options => { options.Filters.Add<ApiResponseFilter>(); });
-
-// 自动注册其他服务（包括 TaskManagementService）
+// 自动注册其他服务（包括 OrderDataService）
 builder.Services.AddApplicationServices();
 
 // 注册任务执行器服务
@@ -151,8 +161,7 @@ builder.Services.AddHttpClient("TaskExecutor").ConfigurePrimaryHttpMessageHandle
 
     return handler;
 });
-// //更新表结构
-// new AddTableService().AddTable();
+
 var app = builder.Build();
 
 // 初始化数据库表
@@ -162,7 +171,7 @@ using (var scope = app.Services.CreateScope())
     tableService.AddTable();
 }
 
-// 启用静态文件
+// 使用默认的静态文件配置
 app.UseStaticFiles();
 
 // Configure the HTTP request pipeline.
