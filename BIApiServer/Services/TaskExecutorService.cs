@@ -7,6 +7,7 @@ namespace BIApiServer.Services
 {
     /// <summary>
     /// 后台任务执行服务
+    /// 负责管理和执行定时任务，支持并发控制和任务重叠检测
     /// </summary>
     public class TaskExecutorService : BackgroundService
     {
@@ -15,10 +16,26 @@ namespace BIApiServer.Services
         private readonly ILogger<TaskExecutorService> _logger;
         private readonly string _baseUrl;
         private readonly IWebHostEnvironment _environment;
-        // 用于跟踪正在执行的任务
-        private readonly ConcurrentDictionary<string, Task> _runningTasks;
-        // 用于控制并发任务数
+        
+        /// <summary>
+        /// 用于跟踪正在执行的任务及其执行信息
+        /// </summary>
+        private readonly ConcurrentDictionary<string, TaskExecutionInfo> _runningTasks;
+        
+        /// <summary>
+        /// 用于控制并发任务数的信号量
+        /// </summary>
         private readonly SemaphoreSlim _semaphore;
+
+        /// <summary>
+        /// 任务执行信息类，用于跟踪任务的执行状态
+        /// </summary>
+        private class TaskExecutionInfo
+        {
+            public Task Task { get; set; }                           // 任务本身
+            public DateTime StartTime { get; set; }                  // 任务开始时间
+            public DateTime NextAllowedExecutionTime { get; set; }   // 下次允许记录日志的时间
+        }
 
         public TaskExecutorService(
             IServiceScopeFactory serviceScopeFactory,
@@ -32,11 +49,16 @@ namespace BIApiServer.Services
             _logger = logger;
             _baseUrl = configuration["ApiSettings:ApiBaseUrlOne"] ?? "https://localhost:5166";
             _environment = environment;
-            _runningTasks = new ConcurrentDictionary<string, Task>();
-            // 限制最大并发任务数为 20
-            _semaphore = new SemaphoreSlim(20);
+            _runningTasks = new ConcurrentDictionary<string, TaskExecutionInfo>();
+            
+            // 从配置中读取最大并发数，默认为10
+            var maxConcurrent = configuration.GetValue<int>("TaskExecutor:MaxConcurrent", 10);
+            _semaphore = new SemaphoreSlim(maxConcurrent);
         }
 
+        /// <summary>
+        /// 服务的主执行循环
+        /// </summary>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -48,6 +70,7 @@ namespace BIApiServer.Services
                         var taskService = scope.ServiceProvider.GetRequiredService<TaskManagementService>();
                         var tasks = await taskService.GetAllTasksAsync();
                         
+                        // 筛选出需要执行的任务并异步执行
                         var executionTasks = tasks
                             .Where(t => t.IsEnabled && ShouldExecuteTask(t))
                             .Select(task => ProcessTaskAsync(task, taskService, stoppingToken));
@@ -61,7 +84,8 @@ namespace BIApiServer.Services
                     _logger.LogError(ex, "执行任务循环时发生错误");
                 }
 
-                await Task.Delay(1000, stoppingToken); // 每秒检查一次
+                // 每秒检查一次任务
+                await Task.Delay(1000, stoppingToken);
             }
         }
 
@@ -71,12 +95,21 @@ namespace BIApiServer.Services
         private async Task ProcessTaskAsync(TaskConfig task, TaskManagementService taskService, CancellationToken stoppingToken)
         {
             // 检查任务是否已在运行
-            if (_runningTasks.ContainsKey(task.Id))
+            if (_runningTasks.TryGetValue(task.Id, out var executionInfo))
             {
-                _logger.LogInformation(
-                    "任务 {TaskName} (ID: {TaskId}) 正在执行中，跳过本次执行",
-                    task.Name,
-                    task.Id);
+                // 每60秒记录一次日志，避免日志刷屏
+                if (DateTime.Now >= executionInfo.NextAllowedExecutionTime)
+                {
+                    var runningTime = (DateTime.Now - executionInfo.StartTime).TotalMinutes;
+                    _logger.LogInformation(
+                        "任务 {TaskName} (ID: {TaskId}) 正在执行中，已运行 {Minutes} 分钟，跳过本次执行",
+                        task.Name,
+                        task.Id,
+                        runningTime.ToString("F1"));
+
+                    // 更新下次允许记录日志的时间
+                    executionInfo.NextAllowedExecutionTime = DateTime.Now.AddSeconds(60);
+                }
                 return;
             }
 
@@ -86,7 +119,14 @@ namespace BIApiServer.Services
                 await _semaphore.WaitAsync(stoppingToken);
 
                 var executionTask = ExecuteTaskWithTimeoutAsync(task, taskService, stoppingToken);
-                if (_runningTasks.TryAdd(task.Id, executionTask))
+                var taskInfo = new TaskExecutionInfo
+                {
+                    Task = executionTask,
+                    StartTime = DateTime.Now,
+                    NextAllowedExecutionTime = DateTime.Now.AddSeconds(60)
+                };
+
+                if (_runningTasks.TryAdd(task.Id, taskInfo))
                 {
                     await executionTask;
                 }
@@ -104,15 +144,21 @@ namespace BIApiServer.Services
         private async Task ExecuteTaskWithTimeoutAsync(TaskConfig task, TaskManagementService taskService, CancellationToken stoppingToken)
         {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-            // 设置超时时间为任务间隔的80%，最少30秒，最多10分钟
-            var timeout = TimeSpan.FromSeconds(Math.Min(Math.Max(task.IntervalSeconds * 0.8, 30), 600));
+            // 设置超时时间为任务间隔的80%
+            var timeout = TimeSpan.FromSeconds(task.IntervalSeconds * 0.8);
             timeoutCts.CancelAfter(timeout);
 
             try
             {
+                _logger.LogInformation(
+                    "开始执行任务: {TaskName} (ID: {TaskId})，预计执行时间：{Timeout}秒",
+                    task.Name,
+                    task.Id,
+                    timeout.TotalSeconds);
+
                 await ExecuteTaskAsync(task, taskService);
                 
-                // 更新最后执行时间
+                // 更新任务的最后执行时间
                 task.LastExecutionTime = DateTime.Now;
                 try
                 {
@@ -122,10 +168,20 @@ namespace BIApiServer.Services
                 {
                     _logger.LogWarning(ex, "更新任务时发生验证错误: {TaskId}", task.Id);
                 }
+
+                _logger.LogInformation(
+                    "任务执行完成: {TaskName} (ID: {TaskId})，实际执行时间：{Duration}秒",
+                    task.Name,
+                    task.Id,
+                    (DateTime.Now - _runningTasks[task.Id].StartTime).TotalSeconds.ToString("F1"));
             }
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
-                _logger.LogWarning("任务执行超时: {TaskId}", task.Id);
+                _logger.LogWarning(
+                    "任务执行超时: {TaskName} (ID: {TaskId})，已执行：{Duration}秒",
+                    task.Name,
+                    task.Id,
+                    (DateTime.Now - _runningTasks[task.Id].StartTime).TotalSeconds.ToString("F1"));
             }
         }
 
@@ -141,14 +197,12 @@ namespace BIApiServer.Services
         }
 
         /// <summary>
-        /// 执行具体的任务
+        /// 执行具体的HTTP任务
         /// </summary>
         private async Task ExecuteTaskAsync(TaskConfig task, TaskManagementService taskService)
         {
             try
             {
-                _logger.LogInformation("开始执行任务: {TaskName} (ID: {TaskId})", task.Name, task.Id);
-
                 using var client = _httpClientFactory.CreateClient("TaskExecutor");
                 var url = task.Url.StartsWith("http") ? task.Url : $"{_baseUrl.TrimEnd('/')}/{task.Url.TrimStart('/')}";
                 using var request = new HttpRequestMessage(new HttpMethod(task.Method), url);
@@ -175,7 +229,7 @@ namespace BIApiServer.Services
                 }
 
                 _logger.LogInformation(
-                    "任务执行完成: {TaskName} (ID: {TaskId}), 状态码: {StatusCode}, 响应: {Response}",
+                    "任务执行成功: {TaskName} (ID: {TaskId}), 状态码: {StatusCode}, 响应: {Response}",
                     task.Name,
                     task.Id,
                     (int)response.StatusCode,
@@ -184,6 +238,7 @@ namespace BIApiServer.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "执行任务 {TaskName} (ID: {TaskId}) 时发生错误", task.Name, task.Id);
+                throw;
             }
         }
 
@@ -192,7 +247,7 @@ namespace BIApiServer.Services
         /// </summary>
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
-            var runningTasks = _runningTasks.Values.ToList();
+            var runningTasks = _runningTasks.Values.Select(info => info.Task).ToList();
             if (runningTasks.Any())
             {
                 _logger.LogInformation("等待所有正在运行的任务完成...");
